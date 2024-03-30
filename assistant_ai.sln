@@ -1,0 +1,30 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.002.0
+MinimumVisualStudioVersion = 10.0.40219.1
+ 
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Assistant.AI.API", "Assistant.AI.API\Assistant.AI.API.csproj", "{936362AA-201C-4970-8A03-7E75863265D6}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{F65216A9-BA6A-4AB2-ABF8-5B4D9FCD0149}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F65216A9-BA6A-4AB2-ABF8-5B4D9FCD0149}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F65216A9-BA6A-4AB2-ABF8-5B4D9FCD0149}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F65216A9-BA6A-4AB2-ABF8-5B4D9FCD0149}.Release|Any CPU.Build.0 = Release|Any CPU
+		{936362AA-201C-4970-8A03-7E75863265D6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{936362AA-201C-4970-8A03-7E75863265D6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{936362AA-201C-4970-8A03-7E75863265D6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{936362AA-201C-4970-8A03-7E75863265D6}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {D33FBF9D-5676-4CBD-BB17-9585C8A731C2}
+	EndGlobalSection
+EndGlobal
