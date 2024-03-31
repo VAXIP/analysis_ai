@@ -28,13 +28,15 @@ public class OpenAICompletionConnector : IOpenAICompletionConnector
     /// <param name="contentStr">The content string for the completion.</param>
     /// <param name="model">The model to use for the completion. Default is "gpt-3.5-turbo-0125".</param>
     /// <returns>The response from the OpenAI API.</returns>
-    public async Task<ResponseChatCompletion> CompletionAsync(string prompt, string contentStr, string model = "gpt-3.5-turbo-0125")
+    public async Task<ResponseChatCompletion> CompletionAsync(string prompt, string contentStr, OpenAIModel model = OpenAIModel.Gpt3_5_Turbo_0125)
     {
         try
         {
+            string modelString = model.ToModelString();
+
             var requestBody = new
             {
-                model,
+                model = modelString,
                 messages = new[]
                 {
                     new {

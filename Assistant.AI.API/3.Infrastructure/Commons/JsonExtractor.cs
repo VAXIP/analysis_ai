@@ -33,18 +33,7 @@ public class JsonExtractor : IJsonExtractor
         // Extraer el substring que contiene el JSON
         string jsonString = fullText.Substring(startIndex).Trim();
 
-        string startPattern = "```json";
-        string endPattern = "```";
-        if (jsonString.StartsWith(startPattern))
-        {
-            jsonString = jsonString[startPattern.Length..]; // Elimina el patrón de inicio
-        }
-        if (jsonString.EndsWith(endPattern))
-        {
-            jsonString = jsonString[..^endPattern.Length]; // Elimina el patrón de final
-        }
-
-        jsonString = jsonString.Trim(); // Elimina espacios en blanco adicionales
+        jsonString = TrimJsonString(jsonString);
 
         // Intentar parsear el JSON
         TDto jsonObject = default!;
@@ -67,4 +56,22 @@ public class JsonExtractor : IJsonExtractor
             JsonData = jsonObject
         };
     }
+
+    /// <summary>
+    /// Trims the given JSON string by removing unnecessary backticks, whitespace, and newlines.
+    /// </summary>
+    /// <param name="jsonString">The JSON string to be trimmed.</param>
+    /// <returns>The trimmed JSON string.</returns>
+    private static string TrimJsonString(string jsonString)
+    {
+        // Primero, eliminamos los backticks y espacios en blanco innecesarios que rodean el JSON
+        jsonString = Regex.Replace(jsonString, @"^```json|```$", "", RegexOptions.Multiline).Trim();
+
+        // Eliminamos todos los saltos de línea innecesarios y espacios adicionales dentro del JSON
+        // Esto incluye convertir saltos de línea y espacios múltiples en un solo espacio
+        jsonString = Regex.Replace(jsonString, @"\s+", " ");
+
+        return jsonString;
+    }
+
 }

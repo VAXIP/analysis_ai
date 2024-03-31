@@ -1,3 +1,4 @@
+
 namespace Assistant.Connector.Interfaces
 {
     /// <summary>
@@ -12,7 +13,6 @@ namespace Assistant.Connector.Interfaces
         /// <param name="contentStr">The content string for the completion.</param>
         /// <param name="model">The model to use for the completion. Default is "gpt-3.5-turbo-0125".</param>
         /// <returns>A task that represents the asynchronous completion operation. The task result contains the response from the OpenAI API.</returns>
-        Task<ResponseChatCompletion> CompletionAsync(string prompt, string contentStr, string model = "gpt-3.5-turbo-0125");
+        Task<ResponseChatCompletion> CompletionAsync(string prompt, string contentStr, OpenAIModel  model  = OpenAIModel.Gpt3_5_Turbo_0125);
     }
 }
-

@@ -21,5 +21,8 @@ global using System.Text.Json;
 global using Assistant.Applications.DTO;
 global using Assistant.Infrastructure.Commons;
 global using System.Text.Json.Serialization;
+global using System.Text.RegularExpressions;
+global using Assistant.AInfrastructure.Connectors.OpenAI.EnumModels;
+
 
 

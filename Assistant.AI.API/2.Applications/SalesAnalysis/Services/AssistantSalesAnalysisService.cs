@@ -47,7 +47,7 @@ public partial class AssistantSalesAnalysisService(IOpenAICompletionConnector AI
             "3. **Proyecciones de ventas**: Basándose en los patrones históricos de ventas, realiza proyecciones de ventas para los próximos tres meses. Considera factores estacionales y tendencias de crecimiento.\n" +
             "4. **Recomendaciones de inventario**: Proporciona recomendaciones sobre cómo ajustar los niveles de inventario basándose en las tendencias de ventas y proyecciones. Indica qué productos deberían ser reabastecidos más frecuentemente y cuáles pueden reducirse.\n" +
             "5. **Oportunidades de marketing**: Identifica oportunidades para campañas de marketing específicas, como promociones para productos de bajo rendimiento o destacar productos estrella en publicidad.\n" +
-            "Por favor, presenta los resultados y los insights en un formato claro y conciso, listando cada punto de análisis con sus respectivas conclusiones e implicaciones para el negocio, seguido por '#### Resultados en JSON a continuación ####' y luego presenta los resultados principales en formato JSON de acuerdo con la siguiente estructura:\n" +
+            "Por favor, presenta los resultados y los insights en un formato claro y conciso, listando cada punto de análisis con sus respectivas conclusiones e implicaciones para el negocio, seguido por '#### Resultados en JSON a continuación ####' y luego presenta al final del texto los resultados principales en formato JSON de acuerdo con la siguiente estructura:\n" +
             "- `productosMasVendidos`: [Un objeto que lista los productos más vendidos, con cada producto como clave y las unidades vendidas como valor.]\n" +
             "- `categoriasConMayorDemanda`: [Un objeto que lista las categorías con mayor demanda, con cada categoría como clave y las unidades vendidas como valor.]\n" +
             "- `productosMasRentables`: [Un objeto que lista los productos más rentables, con cada producto como clave y el total de ingresos generados como valor.]\n" +
@@ -60,7 +60,7 @@ public partial class AssistantSalesAnalysisService(IOpenAICompletionConnector AI
             var message = JsonSerializer.Serialize(salesRecords);
 
             // Send a message to the AI assistant for further processing
-            var response = await _aIConnector.CompletionAsync(prompt, message);
+            var response = await _aIConnector.CompletionAsync(prompt, message, OpenAIModel.Gpt4_0125_Preview);
 
             // Log the response from the AI assistant
             _logger.LogInformation("AI response: {response}", response);
