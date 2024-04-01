@@ -14,12 +14,12 @@ public class Program
         var builder = WebApplication.CreateBuilder(args);
 
         // Add Seguridad con reglas CORS 
-        var vaxipReglasCors = "ReglasCors";
+        var reglasCors = "ReglasCors";
 
         // Configure CORS policy
         builder.Services.AddCors(opt =>
         {
-            opt.AddPolicy(name: vaxipReglasCors,
+            opt.AddPolicy(name: reglasCors,
             builder =>
             {
                 builder.AllowAnyOrigin()
@@ -37,10 +37,7 @@ public class Program
         builder.Configuration.AddJsonFile("appsettings.Development.json", optional: true, reloadOnChange: true);
 
         // Configure services for development environment
-        if (builder.Environment.IsDevelopment())
-        {
-            builder.Services.Configure<OpenAIDTO>(builder.Configuration.GetSection("OpenAI"));
-        }
+
 
         // Configure database connection
         var cnnstr = builder.Configuration.GetConnectionString("cnnstr");
@@ -72,10 +69,14 @@ public class Program
         var app = builder.Build();
 
         // Use CORS policy
-        app.UseCors(vaxipReglasCors);
+        app.UseCors(reglasCors);
 
         // Map controllers
         app.MapControllers();
+
+        // Habilitar el servicio de archivos estáticos
+        app.UseDefaultFiles();
+        app.UseStaticFiles();
 
         // Open database connection and check if it's successful
         using (var scope = app.Services.CreateScope())

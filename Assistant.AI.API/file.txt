@@ -1,0 +1,645 @@
+diff --git a/.gitignore b/.gitignore
+index 61b04d0..976f4b3 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -6,6 +6,7 @@
+ setup
+ appsettings.*
+ appsettings.Development.*
++.openai
+ 
+ # User-specific files
+ *.rsuser
+diff --git a/Assistant.AI.API/2.Applications/SalesAnalysis/Controller/AIAssistantController.cs b/Assistant.AI.API/2.Applications/SalesAnalysis/Controller/AIAssistantController.cs
+index ad31415..703a9ee 100644
+--- a/Assistant.AI.API/2.Applications/SalesAnalysis/Controller/AIAssistantController.cs
++++ b/Assistant.AI.API/2.Applications/SalesAnalysis/Controller/AIAssistantController.cs
+@@ -19,8 +19,21 @@ public class AIAssistantController(IAssistantSalesAnalysisService asistantSalesA
+   public async Task<IActionResult> GetSalesAnality([FromQuery] RequestSearchParametersDTO dto)
+   {
+ 
+-    var result = await _asistantSalesAnalysisService.GetSaleAnalysis(dto.DateInit, dto.DateEnd);
+- 
++    var result = await _asistantSalesAnalysisService.GetSaleAnalysisAsync(dto.DateInit, dto.DateEnd);
++
+     return Ok(result);
+   }
++
++  /// <summary>
++  /// Retrieves a stream of sales analysis data based on the specified search parameters.
++  /// </summary>
++  /// <param name="dto">The search parameters.</param>
++  /// <returns>An asynchronous enumerable of strings representing the partial responses of the sales analysis data.</returns>
++  [HttpGet("getSalesAnalityStream", Name = "getSalesAnalityStream")]
++  [SwaggerResponse(200, Type = typeof(string))]
++  public IAsyncEnumerable<string> GetSalesAnalityStream([FromQuery] RequestSearchParametersDTO dto)
++  {
++    return _asistantSalesAnalysisService.GetSaleAnalysisWithStreamAsync(dto.DateInit, dto.DateEnd);
++  }
++
+ }
+diff --git a/Assistant.AI.API/2.Applications/SalesAnalysis/Services/AssistantSalesAnalysisService.cs b/Assistant.AI.API/2.Applications/SalesAnalysis/Services/AssistantSalesAnalysisService.cs
+index 8d35f4b..9d614d3 100644
+--- a/Assistant.AI.API/2.Applications/SalesAnalysis/Services/AssistantSalesAnalysisService.cs
++++ b/Assistant.AI.API/2.Applications/SalesAnalysis/Services/AssistantSalesAnalysisService.cs
+@@ -27,7 +27,7 @@ public partial class AssistantSalesAnalysisService(IOpenAICompletionConnector AI
+     /// <returns>A <see cref="ResponseDataAnalysisDTO"/> object containing the analysis results and JSON data.</returns>
+     /// <exception cref="ArgumentException">Thrown when the initial date is greater than the end date.</exception>
+     /// <exception cref="Exception">Thrown when an error occurs while performing the sales analysis.</exception>
+-    public async Task<ResponseDataAnalysisDTO> GetSaleAnalysis(string dateInit, string dateEnd)
++    public async Task<ResponseDataAnalysisDTO> GetSaleAnalysisAsync(string dateInit, string dateEnd)
+     {
+         try
+         {
+@@ -60,17 +60,12 @@ public partial class AssistantSalesAnalysisService(IOpenAICompletionConnector AI
+             var message = JsonSerializer.Serialize(salesRecords);
+ 
+             // Send a message to the AI assistant for further processing
+-            var response = await _aIConnector.CompletionAsync(prompt, message, OpenAIModel.Gpt4_0125_Preview);
++            var response = await _aIConnector.CompletionAsync(prompt, message) ?? throw new Exception("No response or invalid response from the AI assistant.");
+ 
+             // Log the response from the AI assistant
+             _logger.LogInformation("AI response: {response}", response);
+ 
+-            // Content of the response variable:
+-            if (response == null || response.Choices.Length == 0 || response.Choices[0].Message == null)
+-            {
+-                throw new Exception("No response or invalid response from the AI assistant.");
+-            }
+-            var contentMessage = response.Choices[0].Message?.Content ?? "";
++            var contentMessage = response.Message.Content.ToString();
+             // Extract the analysis and JSON data from the response
+             var analysisResult = _jsonExtractor.ExtractAnalysisAndJson<InternalVentasInfo>(contentMessage, "#### Resultados en JSON a continuación ####") ?? throw new Exception("Error al extraer el análisis y los datos JSON.");
+ 
+@@ -90,4 +85,43 @@ public partial class AssistantSalesAnalysisService(IOpenAICompletionConnector AI
+         }
+     }
+ 
++    /// <summary>
++    /// Retrieves the sales analysis for a given date range.
++    /// </summary>
++    /// <param name="dateInit">The initial date of the range.</param>
++    /// <param name="dateEnd">The end date of the range.</param>
++    /// <returns>A <see cref="ResponseDataAnalysisDTO"/> object containing the analysis results and JSON data.</returns>
++    /// <exception cref="ArgumentException">Thrown when the initial date is greater than the end date.</exception>
++    /// <exception cref="Exception">Thrown when an error occurs while performing the sales analysis.</exception>
++    public IAsyncEnumerable<string> GetSaleAnalysisWithStreamAsync(string dateInit, string dateEnd)
++    {
++
++        // Convert the string dates to DateOnly objects
++        var dInit = DateOnly.Parse(dateInit);
++        var dEnd = DateOnly.Parse(dateEnd);
++
++        // Validate the input parameters
++        if (dInit > dEnd)
++        {
++            throw new ArgumentException("The initial date cannot be greater than the end date.");
++        }
++
++        var prompt = $"Análisis de ventas para el rango de fechas: {dateInit:dd/MM/yyyy} - {dateEnd:dd/MM/yyyy}. Tengo un conjunto de datos de ventas que incluye el nombre del producto, categoría, unidades vendidas, precio por unidad, fecha de venta y ubicación de la venta. Con esta información, necesito identificar las siguientes métricas e insights:\n" +
++        "1. **Tendencias de ventas**: Identifica cuáles son los productos más vendidos y las categorías de productos con mayor demanda. Observa si hay patrones estacionales o tendencias a lo largo del tiempo en las ventas.\n" +
++        "2. **Análisis de rentabilidad**: Determina cuáles son los productos y categorías más rentables basándose en las unidades vendidas y los precios por unidad.\n" +
++        "3. **Proyecciones de ventas**: Basándose en los patrones históricos de ventas, realiza proyecciones de ventas para los próximos tres meses. Considera factores estacionales y tendencias de crecimiento.\n" +
++        "4. **Recomendaciones de inventario**: Proporciona recomendaciones sobre cómo ajustar los niveles de inventario basándose en las tendencias de ventas y proyecciones. Indica qué productos deberían ser reabastecidos más frecuentemente y cuáles pueden reducirse.\n" +
++        "5. **Oportunidades de marketing**: Identifica oportunidades para campañas de marketing específicas, como promociones para productos de bajo rendimiento o destacar productos estrella en publicidad.\n" +
++        "Por favor, presenta los resultados y los insights en un formato claro y conciso, listando cada punto de análisis con sus respectivas conclusiones e implicaciones para el negocio";
++
++        // Search for the data in the database
++        var salesRecords = _salesRecordRepository.GetSalesByDateRange(dInit, dEnd);
++
++        var message = JsonSerializer.Serialize(salesRecords);
++
++        // Send a message to the AI assistant for further processing
++        return _aIConnector.CompletionWithStreamAsync(prompt, message) ?? throw new Exception("No response or invalid response from the AI assistant.");
++
++    }
++
+ }
+diff --git a/Assistant.AI.API/2.Applications/SalesAnalysis/Services/IAssistantSalesAnalysisService.cs b/Assistant.AI.API/2.Applications/SalesAnalysis/Services/IAssistantSalesAnalysisService.cs
+index 6543c1a..30773b3 100644
+--- a/Assistant.AI.API/2.Applications/SalesAnalysis/Services/IAssistantSalesAnalysisService.cs
++++ b/Assistant.AI.API/2.Applications/SalesAnalysis/Services/IAssistantSalesAnalysisService.cs
+@@ -11,6 +11,20 @@ namespace Assistant.Applications.Interfaces
+     /// </remarks>
+     public interface IAssistantSalesAnalysisService
+     {
+-        public Task<ResponseDataAnalysisDTO> GetSaleAnalysis(string dateInit, string dateEnd);
++        /// <summary>
++        /// Retrieves the sales analysis data for a given date range asynchronously.
++        /// </summary>
++        /// <param name="dateInit">The start date of the analysis.</param>
++        /// <param name="dateEnd">The end date of the analysis.</param>
++        /// <returns>The sales analysis data as a <see cref="ResponseDataAnalysisDTO"/>.</returns>
++        Task<ResponseDataAnalysisDTO> GetSaleAnalysisAsync(string dateInit, string dateEnd);
++
++        /// <summary>
++        /// Retrieves the sales analysis data for a given date range asynchronously using a stream.
++        /// </summary>
++        /// <param name="dateInit">The start date of the analysis.</param>
++        /// <param name="dateEnd">The end date of the analysis.</param>
++        /// <returns>The sales analysis data as a string.</returns>
++        IAsyncEnumerable<string> GetSaleAnalysisWithStreamAsync(string dateInit, string dateEnd);
+     }
+ }
+diff --git a/Assistant.AI.API/3.Infrastructure/Connectors/OpenAI/CompletionConnector/DTOs/InternalChoiceDTO.cs b/Assistant.AI.API/3.Infrastructure/Connectors/OpenAI/CompletionConnector/DTOs/InternalChoiceDTO.cs
+deleted file mode 100644
+index 8b727cb..0000000
+--- a/Assistant.AI.API/3.Infrastructure/Connectors/OpenAI/CompletionConnector/DTOs/InternalChoiceDTO.cs
++++ /dev/null
+@@ -1,28 +0,0 @@
+-namespace Assistant.Connector.DTO
+-{
+-    /// <summary>
+-    /// Represents the data transfer object for an internal choice in the Assistant Connector.
+-    /// </summary>
+-    public class InternalChoiceDTO
+-    {
+-        /// <summary>
+-        /// Gets or sets the index of the internal choice.
+-        /// </summary>
+-        public int Index { get; set; }
+-
+-        /// <summary>
+-        /// Gets or sets the details of the internal message.
+-        /// </summary>
+-        public InternalMessageDetailsDTO? Message { get; set; }
+-
+-        /// <summary>
+-        /// Gets or sets the log probabilities of the internal choice.
+-        /// </summary>
+-        public object Logprobs { get; set; } = new object();
+-
+-        /// <summary>
+-        /// Gets or sets the reason for finishing the internal choice.
+-        /// </summary>
+-        public string FinishReason { get; set; } = string.Empty;
+-    }
+-}
+diff --git a/Assistant.AI.API/3.Infrastructure/Connectors/OpenAI/CompletionConnector/DTOs/InternalMessageDetailsDTO.cs b/Assistant.AI.API/3.Infrastructure/Connectors/OpenAI/CompletionConnector/DTOs/InternalMessageDetailsDTO.cs
+deleted file mode 100644
+index c021ee5..0000000
+--- a/Assistant.AI.API/3.Infrastructure/Connectors/OpenAI/CompletionConnector/DTOs/InternalMessageDetailsDTO.cs
++++ /dev/null
+@@ -1,18 +0,0 @@
+-namespace Assistant.Connector.DTO
+-{
+-    /// <summary>
+-    /// Represents the details of an internal message.
+-    /// </summary>
+-    public class InternalMessageDetailsDTO
+-    {
+-        /// <summary>
+-        /// Gets or sets the role of the message.
+-        /// </summary>
+-        public required string Role { get; set; }
+-
+-        /// <summary>
+-        /// Gets or sets the content of the message.
+-        /// </summary>
+-        public required string Content { get; set; }
+-    }
+-}
+diff --git a/Assistant.AI.API/3.Infrastructure/Connectors/OpenAI/CompletionConnector/DTOs/InternalUsageDataDTO.cs b/Assistant.AI.API/3.Infrastructure/Connectors/OpenAI/CompletionConnector/DTOs/InternalUsageDataDTO.cs
+deleted file mode 100644
+index 6fd9230..0000000
+--- a/Assistant.AI.API/3.Infrastructure/Connectors/OpenAI/CompletionConnector/DTOs/InternalUsageDataDTO.cs
++++ /dev/null
+@@ -1,23 +0,0 @@
+-namespace Assistant.Connector.DTO
+-{
+-    /// <summary>
+-    /// Represents the internal usage data for a completion request.
+-    /// </summary>
+-    public class InternalUsageDataDTO
+-    {
+-        /// <summary>
+-        /// Gets or sets the number of tokens in the prompt.
+-        /// </summary>
+-        public int PromptTokens { get; set; }
+-
+-        /// <summary>
+-        /// Gets or sets the number of tokens in the completion.
+-        /// </summary>
+-        public int CompletionTokens { get; set; }
+-
+-        /// <summary>
+-        /// Gets or sets the total number of tokens in the request.
+-        /// </summary>
+-        public int TotalTokens { get; set; }
+-    }
+-}
+diff --git a/Assistant.AI.API/3.Infrastructure/Connectors/OpenAI/CompletionConnector/DTOs/OpenAIDTO.cs b/Assistant.AI.API/3.Infrastructure/Connectors/OpenAI/CompletionConnector/DTOs/OpenAIDTO.cs
+deleted file mode 100644
+index 8932303..0000000
+--- a/Assistant.AI.API/3.Infrastructure/Connectors/OpenAI/CompletionConnector/DTOs/OpenAIDTO.cs
++++ /dev/null
+@@ -1,19 +0,0 @@
+-namespace Assistant.Connector.DTO
+-{
+-    /// <summary>
+-    /// Represents the settings for the API connection.
+-    /// </summary>
+-    public class OpenAIDTO
+-    {
+-        /// <summary>
+-        /// Gets or sets the API key.
+-        /// </summary>
+-        public required string ApiKey { get; set; }
+-        
+-        /// <summary>
+-        /// Gets or sets the organization ID.
+-        /// </summary>
+-        public required string OrganizationId { get; set; }
+- 
+-    }
+-}
+diff --git a/Assistant.AI.API/3.Infrastructure/Connectors/OpenAI/CompletionConnector/DTOs/ResponseCompletionDTO.cs b/Assistant.AI.API/3.Infrastructure/Connectors/OpenAI/CompletionConnector/DTOs/ResponseCompletionDTO.cs
+deleted file mode 100644
+index 28c1c7a..0000000
+--- a/Assistant.AI.API/3.Infrastructure/Connectors/OpenAI/CompletionConnector/DTOs/ResponseCompletionDTO.cs
++++ /dev/null
+@@ -1,28 +0,0 @@
+-namespace Assistant.Connector.DTO
+-{
+-
+-    public class ResponseChatCompletion
+-    {
+-        [JsonPropertyName("id")]
+-        public string Id { get; set; } = string.Empty;
+-
+-        [JsonPropertyName("object")]
+-        public string Object { get; set; } = string.Empty;
+-
+-        [JsonPropertyName("created")]
+-        public long Created { get; set; } = 0;
+-
+-        [JsonPropertyName("model")]
+-        public string Model { get; set; } = string.Empty;
+-
+-        [JsonPropertyName("system_fingerprint")]
+-        public string SystemFingerprint { get; set; } = string.Empty;
+-
+-        [JsonPropertyName("choices")]
+-        public InternalChoiceDTO[] Choices { get; set; } = [];
+-
+-        [JsonPropertyName("usage")]
+-        public InternalUsageDataDTO Usage { get; set; } = new InternalUsageDataDTO();
+-    }
+-
+-}
+diff --git a/Assistant.AI.API/3.Infrastructure/Connectors/OpenAI/CompletionConnector/IOpenAICompletionConnector.cs b/Assistant.AI.API/3.Infrastructure/Connectors/OpenAI/CompletionConnector/IOpenAICompletionConnector.cs
+deleted file mode 100644
+index 5c54700..0000000
+--- a/Assistant.AI.API/3.Infrastructure/Connectors/OpenAI/CompletionConnector/IOpenAICompletionConnector.cs
++++ /dev/null
+@@ -1,18 +0,0 @@
+-
+-namespace Assistant.Connector.Interfaces
+-{
+-    /// <summary>
+-    /// Represents the interface for the OpenAI completion connector.
+-    /// </summary>
+-    public interface IOpenAICompletionConnector
+-    {
+-        /// <summary>
+-        /// Sends a completion request to the OpenAI API.
+-        /// </summary>
+-        /// <param name="prompt">The prompt for the completion.</param>
+-        /// <param name="contentStr">The content string for the completion.</param>
+-        /// <param name="model">The model to use for the completion. Default is "gpt-3.5-turbo-0125".</param>
+-        /// <returns>A task that represents the asynchronous completion operation. The task result contains the response from the OpenAI API.</returns>
+-        Task<ResponseChatCompletion> CompletionAsync(string prompt, string contentStr, OpenAIModel  model  = OpenAIModel.Gpt3_5_Turbo_0125);
+-    }
+-}
+diff --git a/Assistant.AI.API/3.Infrastructure/Connectors/OpenAI/CompletionConnector/OpenAICompletionConnector.cs b/Assistant.AI.API/3.Infrastructure/Connectors/OpenAI/CompletionConnector/OpenAICompletionConnector.cs
+deleted file mode 100644
+index 1e92be7..0000000
+--- a/Assistant.AI.API/3.Infrastructure/Connectors/OpenAI/CompletionConnector/OpenAICompletionConnector.cs
++++ /dev/null
+@@ -1,78 +0,0 @@
+-namespace Assistant.Connector.Services;
+-
+-/// <summary>
+-/// Represents a connector for interacting with the OpenAI Completion API.
+-/// </summary>
+-public class OpenAICompletionConnector : IOpenAICompletionConnector
+-{
+-    private readonly HttpClient httpClient;
+-
+-    /// <summary>
+-    /// Initializes a new instance of the <see cref="OpenAICompletionConnector"/> class.
+-    /// </summary>
+-    /// <param name="setting">The API settings.</param>
+-    public OpenAICompletionConnector(IOptions<OpenAIDTO> setting)
+-    {
+-        httpClient = new HttpClient()
+-        {
+-            Timeout = TimeSpan.FromMinutes(5)
+-        };
+-        httpClient.DefaultRequestHeaders.Add("OpenAI-Organization", setting.Value.OrganizationId);
+-        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", setting.Value.ApiKey);
+-    }
+-
+-    /// <summary>
+-    /// Sends a completion request to the OpenAI API.
+-    /// </summary>
+-    /// <param name="prompt">The prompt for the completion.</param>
+-    /// <param name="contentStr">The content string for the completion.</param>
+-    /// <param name="model">The model to use for the completion. Default is "gpt-3.5-turbo-0125".</param>
+-    /// <returns>The response from the OpenAI API.</returns>
+-    public async Task<ResponseChatCompletion> CompletionAsync(string prompt, string contentStr, OpenAIModel model = OpenAIModel.Gpt3_5_Turbo_0125)
+-    {
+-        try
+-        {
+-            string modelString = model.ToModelString();
+-
+-            var requestBody = new
+-            {
+-                model = modelString,
+-                messages = new[]
+-                {
+-                    new {
+-                        role = "system",
+-                        content = prompt
+-                    },
+-                    new {
+-                        role = "user",
+-                        content = contentStr
+-                    }
+-                }
+-            };
+-
+-            var requestContent = new StringContent(JsonSerializer.Serialize(requestBody), System.Text.Encoding.UTF8, "application/json");
+-            var response = await httpClient.PostAsync("https://api.openai.com/v1/chat/completions", requestContent);
+-
+-            if (!response.IsSuccessStatusCode)
+-            {
+-                var errorContent = await response.Content.ReadAsStringAsync();
+-                throw new HttpRequestException($"Error en la solicitud: {response.StatusCode}. Detalles: {errorContent}");
+-            }
+-
+-            var content = await response.Content.ReadAsStringAsync();
+-            var aiResponse = JsonSerializer.Deserialize<ResponseChatCompletion>(content, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+-
+-            return aiResponse!;
+-        }
+-        catch (HttpRequestException ex)
+-        {
+-            // Handle HTTP exceptions
+-            throw new ApplicationException($"Error al crear el hilo: {ex.Message}", ex);
+-        }
+-        catch (Exception ex)
+-        {
+-            // Handle other types of exceptions
+-            throw new ApplicationException($"Error inesperado: {ex.Message}", ex);
+-        }
+-    }
+-}
+diff --git a/Assistant.AI.API/3.Infrastructure/Connectors/OpenAI/ModelExtension/OpenAIModel.cs b/Assistant.AI.API/3.Infrastructure/Connectors/OpenAI/ModelExtension/OpenAIModel.cs
+deleted file mode 100644
+index 8304c40..0000000
+--- a/Assistant.AI.API/3.Infrastructure/Connectors/OpenAI/ModelExtension/OpenAIModel.cs
++++ /dev/null
+@@ -1,61 +0,0 @@
+-namespace Assistant.AInfrastructure.Connectors.OpenAI.EnumModels;
+-
+-/// <summary>
+-/// Represents the available models for OpenAIModel.
+-/// </summary>
+-
+-public enum OpenAIModel
+-{
+-    /// <summary>
+-    /// New Updated GPT 3.5 Turbo model with higher accuracy at responding in requested formats.
+-    /// </summary>
+-    /// <remarks>
+-    /// This model addresses a text encoding issue for non-English language function calls and returns a maximum of 4,096 output tokens.
+-    /// Context window: 16,385 tokens. Training data up to Sep 2021.
+-    /// </remarks>
+-    Gpt3_5_Turbo_0125,
+-
+-    /// <summary>
+-    /// Alias for GPT-3.5 Turbo 0125 model.
+-    /// </summary>
+-    /// <remarks>
+-    /// Currently points to Gpt3_5_Turbo_0125 model. Context window: 16,385 tokens. Training data up to Sep 2021.
+-    /// </remarks>
+-    Gpt3_5_Turbo,
+-
+-    /// <summary>
+-    /// GPT-3.5 Turbo model with improved instruction following and reproducible outputs.
+-    /// </summary>
+-    /// <remarks>
+-    /// Features JSON mode, parallel function calling, and returns a maximum of 4,096 output tokens. Context window: 16,385 tokens. Training data up to Sep 2021.
+-    /// </remarks>
+-    Gpt3_5_Turbo_1106,
+-
+-    // Añade descripciones similares para los modelos restantes siguiendo el patrón anterior
+-
+-    /// <summary>
+-    /// New GPT-4 Turbo model intended to reduce cases of "laziness."
+-    /// </summary>
+-    /// <remarks>
+-    /// This model is the latest GPT-4 version with a focus on completing tasks efficiently and returns a maximum of 4,096 output tokens.
+-    /// Context window: 128,000 tokens. Training data up to Dec 2023.
+-    /// </remarks>
+-    Gpt4_0125_Preview,
+-
+-    /// <summary>
+-    /// Alias for GPT-4 0125 Preview model.
+-    /// </summary>
+-    /// <remarks>
+-    /// Currently points to Gpt4_0125_Preview. Context window: 128,000 tokens. Training data up to Dec 2023.
+-    /// </remarks>
+-    Gpt4_Turbo_Preview,
+-
+-    /// <summary>
+-    /// GPT-4 Turbo model featuring improved instruction following and JSON mode.
+-    /// </summary>
+-    /// <remarks>
+-    /// Includes reproducible outputs, parallel function calling, and returns a maximum of 4,096 output tokens.
+-    /// Context window: 128,000 tokens. Training data up to Apr 2023.
+-    /// </remarks>
+-    Gpt4_1106_Preview
+-}
+diff --git a/Assistant.AI.API/3.Infrastructure/Connectors/OpenAI/ModelExtension/OpenAIModelExtensions.cs b/Assistant.AI.API/3.Infrastructure/Connectors/OpenAI/ModelExtension/OpenAIModelExtensions.cs
+deleted file mode 100644
+index 616a863..0000000
+--- a/Assistant.AI.API/3.Infrastructure/Connectors/OpenAI/ModelExtension/OpenAIModelExtensions.cs
++++ /dev/null
+@@ -1,25 +0,0 @@
+-namespace Assistant.AInfrastructure.Connectors.OpenAI.EnumModels;
+-
+-public static class OpenAIModelExtensions
+-{
+-    /// <summary>
+-    /// Converts the specified <see cref="OpenAIModel3_5"/> enum value to its corresponding string representation.
+-    /// </summary>
+-    /// <param name="model">The <see cref="OpenAIModel3_5"/> enum value to convert.</param>
+-    /// <returns>The string representation of the <see cref="OpenAIModel3_5"/> enum value.</returns>
+-    public static string ToModelString(this OpenAIModel model)
+-    {
+-        return model switch
+-        {
+-            OpenAIModel.Gpt3_5_Turbo_0125 => "gpt-3.5-turbo-0125",
+-            OpenAIModel.Gpt3_5_Turbo => "gpt-3.5-turbo",
+-            OpenAIModel.Gpt3_5_Turbo_1106 => "gpt-3.5-turbo-1106",
+-            OpenAIModel.Gpt4_0125_Preview => "gpt-4-0125-preview",
+-            OpenAIModel.Gpt4_Turbo_Preview => "gpt-4-turbo-preview",
+-            OpenAIModel.Gpt4_1106_Preview => "gpt-4-1106-preview",
+-            _ => throw new ArgumentOutOfRangeException(nameof(model), model, null)
+-
+-        };
+-    }
+-
+-}
+diff --git a/Assistant.AI.API/Assistant.AI.API.csproj b/Assistant.AI.API/Assistant.AI.API.csproj
+index 3cd111a..3933666 100644
+--- a/Assistant.AI.API/Assistant.AI.API.csproj
++++ b/Assistant.AI.API/Assistant.AI.API.csproj
+@@ -8,16 +8,20 @@
+ 
+   <ItemGroup>
+     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.3" />
+-     <PackageReference Include="Microsoft.Extensions.Options" Version="8.0.1" />
++    <PackageReference Include="Microsoft.Extensions.Options" Version="8.0.2" />
+     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
+     <PackageReference Include="Swashbuckle.AspNetCore.Annotations" Version="6.5.0" />
+-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.1" />
+-    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="8.0.1" />
+-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.1" />
+-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.0" />
+-    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.1" />
+-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
++    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.3" />
++    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="8.0.3" />
++    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.3" />
++    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.2" />
++    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.3" />
++    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.1" />
+     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
+-    <PackageReference Include="HtmlSanitizer" Version="8.0.838" />
++    <PackageReference Include="HtmlSanitizer" Version="8.0.843" />
++    <PackageReference Include="Microsoft.AspNetCore.SignalR.Common" Version="8.0.3" />
++    <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.Json" Version="8.0.3" />
++    <PackageReference Include="OpenAI-DotNet" Version="7.7.6" />
+   </ItemGroup>
++  
+ </Project>
+diff --git a/Assistant.AI.API/Globals.cs b/Assistant.AI.API/Globals.cs
+index 94caf91..149c8d2 100644
+--- a/Assistant.AI.API/Globals.cs
++++ b/Assistant.AI.API/Globals.cs
+@@ -1,7 +1,4 @@
+-global using System.Net.Http.Headers;
+ global using Microsoft.EntityFrameworkCore;
+-global using Microsoft.Extensions.Options;
+-global using Assistant.Connector.DTO;
+ global using Assistant.Connector.Interfaces;
+ global using Assistant.Connector.Services;
+ global using Microsoft.OpenApi.Models;
+@@ -22,7 +19,7 @@ global using Assistant.Applications.DTO;
+ global using Assistant.Infrastructure.Commons;
+ global using System.Text.Json.Serialization;
+ global using System.Text.RegularExpressions;
+-global using Assistant.AInfrastructure.Connectors.OpenAI.EnumModels;
+-
+-
+-
++global using System.Runtime.CompilerServices;
++global using OpenAI;
++global using OpenAI.Chat;
++global using OpenAI.Models;
+diff --git a/Assistant.AI.API/Program.cs b/Assistant.AI.API/Program.cs
+index 1c81535..9f3dfb6 100644
+--- a/Assistant.AI.API/Program.cs
++++ b/Assistant.AI.API/Program.cs
+@@ -14,12 +14,12 @@ public class Program
+         var builder = WebApplication.CreateBuilder(args);
+ 
+         // Add Seguridad con reglas CORS 
+-        var vaxipReglasCors = "ReglasCors";
++        var reglasCors = "ReglasCors";
+ 
+         // Configure CORS policy
+         builder.Services.AddCors(opt =>
+         {
+-            opt.AddPolicy(name: vaxipReglasCors,
++            opt.AddPolicy(name: reglasCors,
+             builder =>
+             {
+                 builder.AllowAnyOrigin()
+@@ -37,10 +37,7 @@ public class Program
+         builder.Configuration.AddJsonFile("appsettings.Development.json", optional: true, reloadOnChange: true);
+ 
+         // Configure services for development environment
+-        if (builder.Environment.IsDevelopment())
+-        {
+-            builder.Services.Configure<OpenAIDTO>(builder.Configuration.GetSection("OpenAI"));
+-        }
++
+ 
+         // Configure database connection
+         var cnnstr = builder.Configuration.GetConnectionString("cnnstr");
+@@ -72,11 +69,15 @@ public class Program
+         var app = builder.Build();
+ 
+         // Use CORS policy
+-        app.UseCors(vaxipReglasCors);
++        app.UseCors(reglasCors);
+ 
+         // Map controllers
+         app.MapControllers();
+ 
++        // Habilitar el servicio de archivos estáticos
++        app.UseDefaultFiles();
++        app.UseStaticFiles();
++
+         // Open database connection and check if it's successful
+         using (var scope = app.Services.CreateScope())
+         {
+diff --git a/Assistant.AI.API/Properties/launchSettings.json b/Assistant.AI.API/Properties/launchSettings.json
+index 1b84b53..55e1848 100644
+--- a/Assistant.AI.API/Properties/launchSettings.json
++++ b/Assistant.AI.API/Properties/launchSettings.json
+@@ -13,7 +13,7 @@
+       "commandName": "Project",
+       "dotnetRunMessages": true,
+       "launchBrowser": true,
+-      "launchUrl": "swagger",
++      "launchUrl": "",
+       "applicationUrl": "http://localhost:5164",
+       "environmentVariables": {
+         "ASPNETCORE_ENVIRONMENT": "Development"
+diff --git a/README.md b/README.md
+index 66c98ec..ff18375 100644
+--- a/README.md
++++ b/README.md
+@@ -34,17 +34,18 @@ Este enfoque centrado en la IA representa un paso adelante en cómo las empresas
+ 
+ 1. Clona el repositorio a tu máquina local.
+ 2. Asegúrate de tener instalado .NET 8.0 o superior.
+-3. Configura las credenciales de la API de OpenAI en el archivo de configuración `appsettings.json`.
+-
++3. Configura las credenciales de la API de OpenAI en el archivo de configuración en el directorio actual. Ref. https://github.com/RageAgainstThePixel/OpenAI-DotNet?tab=readme-ov-file
++```json
++{
++  "apiKey": "sk-aaaabbbbbccccddddd",
++  "organization": "org-yourOrganizationId" 
++}
++```
++4. Configura la cadena de conexión de la base de datos en el archivo de configuración `appsettings.json`.
+ ```json
+ {
+-  "OpenAI": {
+-    "ApiKey": "TU_CLAVE_API_AQUI",
+-    "OrganizationId": "TU_ORGANIZACION_ID"
+-  }
+-  ,
+   "ConnectionStrings": {
+     "cnnstr": "TU_CADENA_CONEXION"
+   }
+ }
+-```
++```
+\ No newline at end of file

@@ -1,7 +1,4 @@
-global using System.Net.Http.Headers;
 global using Microsoft.EntityFrameworkCore;
-global using Microsoft.Extensions.Options;
-global using Assistant.Connector.DTO;
 global using Assistant.Connector.Interfaces;
 global using Assistant.Connector.Services;
 global using Microsoft.OpenApi.Models;
@@ -22,7 +19,7 @@ global using Assistant.Applications.DTO;
 global using Assistant.Infrastructure.Commons;
 global using System.Text.Json.Serialization;
 global using System.Text.RegularExpressions;
-global using Assistant.AInfrastructure.Connectors.OpenAI.EnumModels;
-
-
-
+global using System.Runtime.CompilerServices;
+global using OpenAI;
+global using OpenAI.Chat;
+global using OpenAI.Models;
