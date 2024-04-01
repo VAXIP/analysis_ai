@@ -34,15 +34,16 @@ Este enfoque centrado en la IA representa un paso adelante en cómo las empresas
 
 1. Clona el repositorio a tu máquina local.
 2. Asegúrate de tener instalado .NET 8.0 o superior.
-3. Configura las credenciales de la API de OpenAI en el archivo de configuración `appsettings.json`.
-
+3. Configura las credenciales de la API de OpenAI en el archivo de configuración en el directorio actual. Ref. https://github.com/RageAgainstThePixel/OpenAI-DotNet?tab=readme-ov-file
 ```json
 {
-  "OpenAI": {
-    "ApiKey": "TU_CLAVE_API_AQUI",
-    "OrganizationId": "TU_ORGANIZACION_ID"
-  }
-  ,
+  "apiKey": "sk-aaaabbbbbccccddddd",
+  "organization": "org-yourOrganizationId" 
+}
+```
+4. Configura la cadena de conexión de la base de datos en el archivo de configuración `appsettings.json`.
+```json
+{
   "ConnectionStrings": {
     "cnnstr": "TU_CADENA_CONEXION"
   }

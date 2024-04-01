@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Análisis de Ventas</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        input,
+        button {
+            padding: 10px;
+            margin: 5px;
+            font-size: 1em;
+        }
+
+        pre {
+            background-color: #f4f4f4;
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+
+        #salesAnalysis {
+            min-height: 100px;
+            /* Altura mínima inicial */
+            max-height: 500px;
+            /* Altura máxima antes de que se aplique scroll */
+            overflow-y: auto;
+            /* Muestra scroll vertical si el contenido excede la altura máxima */
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>Introduce el Rango de Fechas para el Análisis de Ventas</h2>
+    <input type="date" id="dateInit" name="dateInit">
+    <input type="date" id="dateEnd" name="dateEnd">
+    <button onclick="fetchSalesAnalysis()">Analizar Ventas</button>
+    <button onclick="document.getElementById('salesAnalysis').textContent = ''">Limpiar</button>
+    <h3>Resultados:</h3>
+    <pre id="salesAnalysis"></pre>
+    <script>
+
+        async function fetchSalesAnalysis() {
+            const response = await fetch('v1/ai/assistant/getSalesAnalityStream?dateInit=' + document.getElementById('dateInit').value + '&dateEnd=' + document.getElementById('dateEnd').value);
+
+            if (!response.body) {
+                console.error('Respuesta de la API no válida');
+                return;
+            }
+
+            const reader = response.body.getReader();
+            try {
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break; // Salir del bucle si hemos terminado de leer el stream
+
+                    // Convertir el fragmento de datos (value) a texto
+                    let textRaw = new TextDecoder().decode(value);
+
+                    // Eliminar las comillas del inicio y del final del fragmento de texto
+                    // Quita la coma del inicio si existe y los corchetes del inicio y del final del fragmento de texto 
+                    textoJson = "[" + textRaw.replace(/^,/, '').replace(/^\[/, '').replace(/\]$/, '') + "]";
+
+                    // Parsea el texto como un array JSON
+                    let arrayTexto = JSON.parse(textoJson);
+
+                    // Une los elementos del array para formar una sola cadena de texto
+                    let textChunk = arrayTexto.join('');
+
+                    // Agregar el fragmento de texto formateado al contenido existente
+                    const displayElement = document.getElementById('salesAnalysis');
+                    displayElement.textContent += textChunk;
+
+                    // Asegurarse de que el scroll se mueva hacia abajo con cada nueva adición para simular el chat
+                    displayElement.scrollTop = displayElement.scrollHeight;
+                }
+            } catch (error) {
+                console.error('Error al leer el stream:', error);
+            }
+        }
+
+    </script>
+</body>
+
+</html>

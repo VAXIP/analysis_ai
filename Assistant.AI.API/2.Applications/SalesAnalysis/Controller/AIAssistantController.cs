@@ -19,8 +19,21 @@ public class AIAssistantController(IAssistantSalesAnalysisService asistantSalesA
   public async Task<IActionResult> GetSalesAnality([FromQuery] RequestSearchParametersDTO dto)
   {
 
-    var result = await _asistantSalesAnalysisService.GetSaleAnalysis(dto.DateInit, dto.DateEnd);
- 
+    var result = await _asistantSalesAnalysisService.GetSaleAnalysisAsync(dto.DateInit, dto.DateEnd);
+
     return Ok(result);
   }
+
+  /// <summary>
+  /// Retrieves a stream of sales analysis data based on the specified search parameters.
+  /// </summary>
+  /// <param name="dto">The search parameters.</param>
+  /// <returns>An asynchronous enumerable of strings representing the partial responses of the sales analysis data.</returns>
+  [HttpGet("getSalesAnalityStream", Name = "getSalesAnalityStream")]
+  [SwaggerResponse(200, Type = typeof(string))]
+  public IAsyncEnumerable<string> GetSalesAnalityStream([FromQuery] RequestSearchParametersDTO dto)
+  {
+    return _asistantSalesAnalysisService.GetSaleAnalysisWithStreamAsync(dto.DateInit, dto.DateEnd);
+  }
+
 }

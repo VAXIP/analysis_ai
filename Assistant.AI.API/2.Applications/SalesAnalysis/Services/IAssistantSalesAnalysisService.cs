@@ -11,6 +11,20 @@ namespace Assistant.Applications.Interfaces
     /// </remarks>
     public interface IAssistantSalesAnalysisService
     {
-        public Task<ResponseDataAnalysisDTO> GetSaleAnalysis(string dateInit, string dateEnd);
+        /// <summary>
+        /// Retrieves the sales analysis data for a given date range asynchronously.
+        /// </summary>
+        /// <param name="dateInit">The start date of the analysis.</param>
+        /// <param name="dateEnd">The end date of the analysis.</param>
+        /// <returns>The sales analysis data as a <see cref="ResponseDataAnalysisDTO"/>.</returns>
+        Task<ResponseDataAnalysisDTO> GetSaleAnalysisAsync(string dateInit, string dateEnd);
+
+        /// <summary>
+        /// Retrieves the sales analysis data for a given date range asynchronously using a stream.
+        /// </summary>
+        /// <param name="dateInit">The start date of the analysis.</param>
+        /// <param name="dateEnd">The end date of the analysis.</param>
+        /// <returns>The sales analysis data as a string.</returns>
+        IAsyncEnumerable<string> GetSaleAnalysisWithStreamAsync(string dateInit, string dateEnd);
     }
 }
